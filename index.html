@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikasi Tabungan & Pengeluaran dengan Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1, h2 {
+      text-align: center;
+      color: #333;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 20px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+    }
+
+    li {
+      background: #f9f9f9;
+      padding: 10px;
+      border-left: 5px solid #007bff;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .pengeluaran {
+      border-left-color: #e74c3c;
+    }
+
+    .hapus {
+      background: none;
+      border: none;
+      color: red;
+      cursor: pointer;
+    }
+
+    .logout-btn {
+      background: #dc3545;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Aplikasi Tabungan & Pengeluaran</h1>
+
+  <!-- Halaman Login -->
+  <div class="container" id="halamanLogin">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Masukkan Username" required>
+    <input type="password" id="password" placeholder="Masukkan Password" required>
+    <button onclick="login()">Login</button>
+
+    <p style="text-align:center; margin-top:10px;">Belum punya akun?
+      <a href="#" onclick="showRegister()">Daftar di sini</a>
+    </p>
+  </div>
+
+  <!-- Halaman Register -->
+  <div class="container" id="halamanRegister" style="display:none;">
+    <h2>Registrasi</h2>
+    <input type="text" id="regUsername" placeholder="Buat Username" required>
+    <input type="password" id="regPassword" placeholder="Buat Password" required>
+    <button onclick="register()">Daftar</button>
+    <p style="text-align:center; margin-top:10px;">
+      Sudah punya akun? <a href="#" onclick="showLogin()">Login di sini</a>
+    </p>
+  </div>
+
+  <!-- Halaman Aplikasi -->
+  <div class="container" id="halamanAplikasi" style="display:none;">
+    <div class="balance">
+      <h2>Saldo Saat Ini:</h2>
+      <h2 id="saldo">Rp 0</h2>
+    </div>
+
+    <form id="formTransaksi">
+      <input type="text" id="deskripsi" placeholder="Deskripsi" required>
+      <input type="number" id="jumlah" placeholder="Jumlah (Rp)" required>
+      <select id="tipe">
+        <option value="tabungan">Tabungan</option>
+        <option value="pengeluaran">Pengeluaran</option>
+      </select>
+      <button type="submit">Tambah Transaksi</button>
+    </form>
+
+    <ul id="daftarTransaksi"></ul>
+
+    <button class="logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <script>
+    // ======================
+    // SISTEM LOGIN
+    // ======================
+    const halamanLogin = document.getElementById('halamanLogin');
+    const halamanRegister = document.getElementById('halamanRegister');
+    const halamanAplikasi = document.getElementById('halamanAplikasi');
+    let userAktif = localStorage.getItem('userAktif');
+
+    function showLogin() {
+      halamanRegister.style.display = 'none';
+      halamanLogin.style.display = 'block';
+    }
+
+    function showRegister() {
+      halamanLogin.style.display = 'none';
+      halamanRegister.style.display = 'block';
+    }
+
+    function register() {
+      const username = document.getElementById('regUsername').value.trim();
+      const password = document.getElementById('regPassword').value;
+
+      if (!username || !password) {
+        alert('Isi semua kolom!');
+        return;
+      }
+
+      const users = JSON.parse(localStorage.getItem('users')) || {};
+
+      if (users[username]) {
+        alert('Username sudah terdaftar!');
+        return;
+      }
+
+      users[username] = { password, transaksi: [] };
+      localStorage.setItem('users', JSON.stringify(users));
+      alert('Registrasi berhasil! Silakan login.');
+      showLogin();
+    }
+
+    function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const users = JSON.parse(localStorage.getItem('users')) || {};
+
+      if (users[username] && users[username].password === password) {
+        userAktif = username;
+        localStorage.setItem('userAktif', userAktif);
+        renderTransaksi();
+        showApp();
+      } else {
+        alert('Username atau password salah!');
+      }
+    }
+
+    function showApp() {
+      halamanLogin.style.display = 'none';
+      halamanRegister.style.display = 'none';
+      halamanAplikasi.style.display = 'block';
+    }
+
+    function logout() {
+      localStorage.removeItem('userAktif');
+      location.reload();
+    }
+
+    // ======================
+    // SISTEM TABUNGAN
+    // ======================
+    const form = document.getElementById('formTransaksi');
+    const daftarTransaksi = document.getElementById('daftarTransaksi');
+    const saldoEl = document.getElementById('saldo');
+
+    function getUserData() {
+      const users = JSON.parse(localStorage.getItem('users')) || {};
+      return users[userAktif];
+    }
+
+    function updateUserData(data) {
+      const users = JSON.parse(localStorage.getItem('users')) || {};
+      users[userAktif] = data;
+      localStorage.setItem('users', JSON.stringify(users));
+    }
+
+    function updateSaldo() {
+      const userData = getUserData();
+      const saldo = userData.transaksi.reduce((total, item) => {
+        return item.tipe === 'tabungan' ? total + item.jumlah : total - item.jumlah;
+      }, 0);
+      saldoEl.textContent = `Rp ${saldo.toLocaleString('id-ID')}`;
+      updateUserData(userData);
+    }
+
+    function renderTransaksi() {
+      if (!userAktif) return;
+      const userData = getUserData();
+      daftarTransaksi.innerHTML = '';
+      userData.transaksi.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.classList.add(item.tipe === 'pengeluaran' ? 'pengeluaran' : '');
+        li.innerHTML = `
+          ${item.deskripsi} <strong>Rp ${item.jumlah.toLocaleString('id-ID')}</strong>
+          <button class="hapus" onclick="hapusTransaksi(${index})">✕</button>
+        `;
+        daftarTransaksi.appendChild(li);
+      });
+      updateSaldo();
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const deskripsi = document.getElementById('deskripsi').value.trim();
+      const jumlah = parseInt(document.getElementById('jumlah').value);
+      const tipe = document.getElementById('tipe').value;
+
+      if (!deskripsi || jumlah <= 0) return;
+
+      const userData = getUserData();
+      userData.transaksi.push({ deskripsi, jumlah, tipe });
+      updateUserData(userData);
+      form.reset();
+      renderTransaksi();
+    });
+
+    function hapusTransaksi(index) {
+      const userData = getUserData();
+      userData.transaksi.splice(index, 1);
+      updateUserData(userData);
+      renderTransaksi();
+    }
+
+    // ======================
+    // CEK LOGIN SAAT HALAMAN DIBUKA
+    // ======================
+    if (userAktif) {
+      showApp();
+      renderTransaksi();
+    }
+  </script>
+</body>
+</html>
