@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aplikasi Tabungan & Pengeluaran dengan Login</title>
+  <title>Aplikasi Tabungan & Pengeluaran</title>
+
+  <!-- Library Chart.js, jsPDF, dan SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -46,6 +52,16 @@
       background: #0056b3;
     }
 
+    .logout-btn {
+      background: #dc3545;
+      margin-top: 10px;
+    }
+
+    .export-btn {
+      background: #28a745;
+      margin-top: 10px;
+    }
+
     ul {
       list-style: none;
       padding: 0;
@@ -72,9 +88,19 @@
       cursor: pointer;
     }
 
-    .logout-btn {
-      background: #dc3545;
+    canvas {
+      margin-top: 20px;
+      width: 100%;
+    }
+
+    .link {
+      text-align: center;
       margin-top: 10px;
+    }
+
+    .export-container {
+      display: flex;
+      gap: 10px;
     }
   </style>
 </head>
@@ -82,30 +108,43 @@
 
   <h1>Aplikasi Tabungan & Pengeluaran</h1>
 
-  <!-- Halaman Login -->
+  <!-- LOGIN -->
   <div class="container" id="halamanLogin">
     <h2>Login</h2>
     <input type="text" id="username" placeholder="Masukkan Username" required>
     <input type="password" id="password" placeholder="Masukkan Password" required>
     <button onclick="login()">Login</button>
-
-    <p style="text-align:center; margin-top:10px;">Belum punya akun?
-      <a href="#" onclick="showRegister()">Daftar di sini</a>
-    </p>
+    <div class="link">
+      <a href="#" onclick="showRegister()">Belum punya akun?</a> |
+      <a href="#" onclick="showForgot()">Lupa password?</a>
+    </div>
   </div>
 
-  <!-- Halaman Register -->
+  <!-- REGISTER -->
   <div class="container" id="halamanRegister" style="display:none;">
     <h2>Registrasi</h2>
     <input type="text" id="regUsername" placeholder="Buat Username" required>
     <input type="password" id="regPassword" placeholder="Buat Password" required>
+    <input type="text" id="regHint" placeholder="Petunjuk Password" required>
     <button onclick="register()">Daftar</button>
-    <p style="text-align:center; margin-top:10px;">
-      Sudah punya akun? <a href="#" onclick="showLogin()">Login di sini</a>
-    </p>
+    <div class="link">
+      <a href="#" onclick="showLogin()">Sudah punya akun?</a>
+    </div>
   </div>
 
-  <!-- Halaman Aplikasi -->
+  <!-- LUPA PASSWORD -->
+  <div class="container" id="halamanLupa" style="display:none;">
+    <h2>Lupa Password</h2>
+    <input type="text" id="forgotUsername" placeholder="Masukkan Username">
+    <input type="text" id="forgotHint" placeholder="Masukkan Petunjuk Password">
+    <input type="password" id="newPassword" placeholder="Password Baru">
+    <button onclick="resetPassword()">Reset Password</button>
+    <div class="link">
+      <a href="#" onclick="showLogin()">Kembali ke Login</a>
+    </div>
+  </div>
+
+  <!-- APLIKASI -->
   <div class="container" id="halamanAplikasi" style="display:none;">
     <div class="balance">
       <h2>Saldo Saat Ini:</h2>
@@ -123,48 +162,57 @@
     </form>
 
     <ul id="daftarTransaksi"></ul>
+    <canvas id="chartLaporan"></canvas>
+
+    <div class="export-container">
+      <button class="export-btn" onclick="exportExcel()">📗 Ekspor ke Excel</button>
+      <button class="export-btn" onclick="exportPDF()">📕 Ekspor ke PDF</button>
+    </div>
 
     <button class="logout-btn" onclick="logout()">Logout</button>
   </div>
 
   <script>
-    // ======================
-    // SISTEM LOGIN
-    // ======================
     const halamanLogin = document.getElementById('halamanLogin');
     const halamanRegister = document.getElementById('halamanRegister');
+    const halamanLupa = document.getElementById('halamanLupa');
     const halamanAplikasi = document.getElementById('halamanAplikasi');
     let userAktif = localStorage.getItem('userAktif');
+    let chart;
 
     function showLogin() {
-      halamanRegister.style.display = 'none';
       halamanLogin.style.display = 'block';
+      halamanRegister.style.display = 'none';
+      halamanLupa.style.display = 'none';
+      halamanAplikasi.style.display = 'none';
     }
-
     function showRegister() {
       halamanLogin.style.display = 'none';
       halamanRegister.style.display = 'block';
+      halamanLupa.style.display = 'none';
+    }
+    function showForgot() {
+      halamanLogin.style.display = 'none';
+      halamanRegister.style.display = 'none';
+      halamanLupa.style.display = 'block';
+    }
+    function showApp() {
+      halamanLogin.style.display = 'none';
+      halamanRegister.style.display = 'none';
+      halamanLupa.style.display = 'none';
+      halamanAplikasi.style.display = 'block';
     }
 
     function register() {
       const username = document.getElementById('regUsername').value.trim();
       const password = document.getElementById('regPassword').value;
-
-      if (!username || !password) {
-        alert('Isi semua kolom!');
-        return;
-      }
-
+      const hint = document.getElementById('regHint').value.trim();
+      if (!username || !password || !hint) return alert('Isi semua kolom!');
       const users = JSON.parse(localStorage.getItem('users')) || {};
-
-      if (users[username]) {
-        alert('Username sudah terdaftar!');
-        return;
-      }
-
-      users[username] = { password, transaksi: [] };
+      if (users[username]) return alert('Username sudah terdaftar!');
+      users[username] = { password, hint, transaksi: [] };
       localStorage.setItem('users', JSON.stringify(users));
-      alert('Registrasi berhasil! Silakan login.');
+      alert('Registrasi berhasil!');
       showLogin();
     }
 
@@ -172,21 +220,25 @@
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
       const users = JSON.parse(localStorage.getItem('users')) || {};
-
       if (users[username] && users[username].password === password) {
         userAktif = username;
         localStorage.setItem('userAktif', userAktif);
         renderTransaksi();
         showApp();
-      } else {
-        alert('Username atau password salah!');
-      }
+      } else alert('Username atau password salah!');
     }
 
-    function showApp() {
-      halamanLogin.style.display = 'none';
-      halamanRegister.style.display = 'none';
-      halamanAplikasi.style.display = 'block';
+    function resetPassword() {
+      const username = document.getElementById('forgotUsername').value.trim();
+      const hint = document.getElementById('forgotHint').value.trim();
+      const newPass = document.getElementById('newPassword').value;
+      const users = JSON.parse(localStorage.getItem('users')) || {};
+      if (users[username] && users[username].hint === hint) {
+        users[username].password = newPass;
+        localStorage.setItem('users', JSON.stringify(users));
+        alert('Password berhasil direset!');
+        showLogin();
+      } else alert('Data tidak cocok!');
     }
 
     function logout() {
@@ -194,9 +246,6 @@
       location.reload();
     }
 
-    // ======================
-    // SISTEM TABUNGAN
-    // ======================
     const form = document.getElementById('formTransaksi');
     const daftarTransaksi = document.getElementById('daftarTransaksi');
     const saldoEl = document.getElementById('saldo');
@@ -214,9 +263,8 @@
 
     function updateSaldo() {
       const userData = getUserData();
-      const saldo = userData.transaksi.reduce((total, item) => {
-        return item.tipe === 'tabungan' ? total + item.jumlah : total - item.jumlah;
-      }, 0);
+      const saldo = userData.transaksi.reduce((total, item) =>
+        item.tipe === 'tabungan' ? total + item.jumlah : total - item.jumlah, 0);
       saldoEl.textContent = `Rp ${saldo.toLocaleString('id-ID')}`;
       updateUserData(userData);
     }
@@ -225,47 +273,100 @@
       if (!userAktif) return;
       const userData = getUserData();
       daftarTransaksi.innerHTML = '';
-      userData.transaksi.forEach((item, index) => {
+      userData.transaksi.forEach((item, i) => {
         const li = document.createElement('li');
         li.classList.add(item.tipe === 'pengeluaran' ? 'pengeluaran' : '');
-        li.innerHTML = `
-          ${item.deskripsi} <strong>Rp ${item.jumlah.toLocaleString('id-ID')}</strong>
-          <button class="hapus" onclick="hapusTransaksi(${index})">✕</button>
-        `;
+        li.innerHTML = `${item.deskripsi} <strong>Rp ${item.jumlah.toLocaleString('id-ID')}</strong>
+          <button class="hapus" onclick="hapusTransaksi(${i})">✕</button>`;
         daftarTransaksi.appendChild(li);
       });
       updateSaldo();
+      renderChart();
     }
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', e => {
       e.preventDefault();
       const deskripsi = document.getElementById('deskripsi').value.trim();
       const jumlah = parseInt(document.getElementById('jumlah').value);
       const tipe = document.getElementById('tipe').value;
-
       if (!deskripsi || jumlah <= 0) return;
-
       const userData = getUserData();
-      userData.transaksi.push({ deskripsi, jumlah, tipe });
+      userData.transaksi.push({ deskripsi, jumlah, tipe, tanggal: new Date().toISOString() });
       updateUserData(userData);
       form.reset();
       renderTransaksi();
     });
 
-    function hapusTransaksi(index) {
+    function hapusTransaksi(i) {
       const userData = getUserData();
-      userData.transaksi.splice(index, 1);
+      userData.transaksi.splice(i, 1);
       updateUserData(userData);
       renderTransaksi();
     }
 
-    // ======================
-    // CEK LOGIN SAAT HALAMAN DIBUKA
-    // ======================
-    if (userAktif) {
-      showApp();
-      renderTransaksi();
+    // =======================
+    // GRAFIK
+    // =======================
+    function renderChart() {
+      const userData = getUserData();
+      const dataBulan = {};
+      userData.transaksi.forEach(item => {
+        const bulan = new Date(item.tanggal).toLocaleString('id-ID', { month: 'short', year: 'numeric' });
+        if (!dataBulan[bulan]) dataBulan[bulan] = { tabungan: 0, pengeluaran: 0 };
+        dataBulan[bulan][item.tipe] += item.jumlah;
+      });
+      const labels = Object.keys(dataBulan);
+      const dataTabungan = labels.map(l => dataBulan[l].tabungan);
+      const dataPengeluaran = labels.map(l => dataBulan[l].pengeluaran);
+      const ctx = document.getElementById('chartLaporan').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Tabungan', data: dataTabungan, backgroundColor: 'rgba(0,123,255,0.6)' },
+            { label: 'Pengeluaran', data: dataPengeluaran, backgroundColor: 'rgba(231,76,60,0.6)' }
+          ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
     }
+
+    // =======================
+    // EKSPOR DATA
+    // =======================
+    function exportExcel() {
+      const userData = getUserData();
+      if (!userData.transaksi.length) return alert('Tidak ada data untuk diekspor!');
+      const data = userData.transaksi.map(t => ({
+        Deskripsi: t.deskripsi,
+        Jumlah: t.jumlah,
+        Tipe: t.tipe,
+        Tanggal: new Date(t.tanggal).toLocaleDateString('id-ID')
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
+      XLSX.writeFile(wb, `Laporan_${userAktif}.xlsx`);
+    }
+
+    async function exportPDF() {
+      const userData = getUserData();
+      if (!userData.transaksi.length) return alert('Tidak ada data untuk diekspor!');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text(`Laporan Keuangan - ${userAktif}`, 10, 10);
+      let y = 20;
+      userData.transaksi.forEach(t => {
+        doc.text(`${t.deskripsi} | Rp ${t.jumlah.toLocaleString('id-ID')} | ${t.tipe} | ${new Date(t.tanggal).toLocaleDateString('id-ID')}`, 10, y);
+        y += 8;
+      });
+      doc.save(`Laporan_${userAktif}.pdf`);
+    }
+
+    // AUTO LOGIN
+    if (userAktif) { showApp(); renderTransaksi(); }
   </script>
 </body>
 </html>
